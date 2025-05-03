@@ -3,7 +3,7 @@ Second Life LSL Code for a ChatGPT Chat Bot
 
 **Instructions for Configuring the Chat Bot**
 ---
-1. Create an object in second life or use a prefab object. (I used a mesh of a black cat for the "CatGPT" demo at the Museum of computing history).
+1. Create an object in second life or use a prefab object. (I used a mesh of a black cat for the "CatGPT" demo in the AI Exhibit at the [Museum of Computing History](http://maps.secondlife.com/secondlife/Pippen/67/54/46)).
 2. Create a notecard and copy the contents of the config file in this reporsitory to it.
 3. Adjust the parameters of the config file as follows:
     - API_KEY=<YOUR_API_KEY>
@@ -34,6 +34,7 @@ Second Life LSL Code for a ChatGPT Chat Bot
 3. The bot will respond with the AI model output, example:
     - **You:** *cat What is Second Life?*
     - **Bot Response:** *CatGPT: Second Life is an online virtual world launched in 2003 where users, called avatars, can explore, create, and socialize. You can build your own spaces, interact with others, attend events, and even create and sell virtual goods. It's a platform for creativity and community, allowing people from around the world to connect and experience a variety of activities in a 3D environment. Enjoy your adventures!*
+4. The owner of the object can touch it to toggle the bot on/off.
 
 **For Help**
 ---
