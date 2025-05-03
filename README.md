@@ -9,7 +9,7 @@ Second Life LSL Code for a ChatGPT Chat Bot
     - API_KEY=<YOUR_API_KEY>
         - Change <YOUR_API_KEY> to your Open AI Platform API Key
         - You can get one at: [Open AI Keys](https://platform.openai.com/api-keys)
-        - Note: Usage of an API key is not free! By default we use gpt-4o-mini which is very inexpensive but it is not free. Pricing is available at: [Open AI API Pricing](https://openai.com/api/pricing/)
+        - Note: Usage of an API key is not free! By default the script uses gpt-4o-mini which is very inexpensive but it is not free. Pricing is available at: [Open AI API Pricing](https://openai.com/api/pricing/)
     - MODEL=gpt-4o-mini
         - This model works well for most purposes and is inexpensive but other models can be used.
     - TRIGGER_PREFIX=cat
