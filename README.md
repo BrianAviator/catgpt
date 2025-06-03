@@ -24,6 +24,16 @@ Second Life LSL Code for a ChatGPT Chat Bot
         - Set to 1 if you want the script to output debugging information. Typically this should remain at 0.
     - SYSTEM_PROMPT=You are CatGPT, an AI demonstration exhibit in Second Life. Your responses should be brief (75-100 words at most) as they'll appear in public chat. Be helpful, and friendly. Your responses will be visible to everyone in the area, so keep them appropriate for all audiences, G-rated only.
         - Instructions to be given to the AI API. This governs how the bot behaves.
+    - BOT_NAME=CatGPT
+        - The name of the bot that will be displayed in chat messages. This name is automatically inserted into the SYSTEM_PROMPT when the config is loaded.
+    - API_ENDPOINT=https://api.openai.com/v1/chat/completions
+        - The API endpoint URL for OpenAI's chat completions. Typically this should not be changed unless using a proxy or alternative endpoint.
+    - LISTENING_CHANNEL=0
+        - The chat channel the bot listens on. 0 is public chat. Change this if you want the bot to listen on a specific channel.
+    - MAX_HISTORY_SIZE=10
+        - Maximum number of messages to store in conversation history (includes both user messages and bot responses). Default of 10 stores 5 complete interactions.
+    - HISTORY_TIMEOUT=1200.0
+        - Time in seconds before conversation history expires. Default is 1200 seconds (20 minutes).
 4. Create a new script in the inventory of the object and copy the contents of the catgpt.lsl file in this repository to the script contents.
 
 **Instructions for Using the Chat Bot**
@@ -35,6 +45,8 @@ Second Life LSL Code for a ChatGPT Chat Bot
     - **You:** *cat What is Second Life?*
     - **Bot Response:** *CatGPT: Second Life is an online virtual world launched in 2003 where users, called avatars, can explore, create, and socialize. You can build your own spaces, interact with others, attend events, and even create and sell virtual goods. It's a platform for creativity and community, allowing people from around the world to connect and experience a variety of activities in a 3D environment. Enjoy your adventures!*
 4. The owner of the object can touch it to toggle the bot on/off.
+5. The bot now maintains conversation history of the last 5 interactions (both user questions and bot responses), allowing for context-aware conversations.
+6. Conversation history automatically expires after 20 minutes of inactivity.
 
 **For Help**
 ---

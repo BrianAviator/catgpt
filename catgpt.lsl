@@ -8,6 +8,7 @@ string CONFIG_NOTECARD = "config";
 string API_KEY = "";
 string API_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 string MODEL = "gpt-4o-mini";
+string BOT_NAME = "CatGPT";         // Default Bot name
 string TRIGGER_PREFIX = "cat";      // Default trigger prefix
 float RATE_LIMIT_SECONDS = 10.0;    // Default minimum time between API calls
 integer MAX_TOKENS = 100;           // Default maximum tokens in response
@@ -23,6 +24,12 @@ integer listening = TRUE;
 integer can_process = TRUE;
 float last_request_time = -9999.0;  // Initialize to a large negative value to ensure first request passes
 key http_request_id;
+
+// Conversation history variables
+list conversation_history = [];     // Stores conversation messages
+list conversation_timestamps = [];  // Stores timestamps for each message
+integer MAX_HISTORY_SIZE = 10;      // Store 5 interactions (user + assistant = 10 messages)
+float HISTORY_TIMEOUT = 1200.0;     // 20 minutes in seconds
 
 // Function to convert utf8 encoded strings to Unicode
 string utf8ToUnicode(string s)
@@ -112,23 +119,81 @@ integer isAvatar(key id) {
     return llGetAgentSize(id) != ZERO_VECTOR;
 }
 
+// Function to clean up expired history entries
+cleanupHistory() {
+    float current_time = llGetTime();
+    list new_history = [];
+    list new_timestamps = [];
+    
+    integer i;
+    for (i = 0; i < llGetListLength(conversation_history); i++) {
+        float timestamp = llList2Float(conversation_timestamps, i);
+        if (current_time - timestamp < HISTORY_TIMEOUT) {
+            // Keep this entry
+            new_history += llList2String(conversation_history, i);
+            new_timestamps += timestamp;
+        }
+    }
+    
+    conversation_history = new_history;
+    conversation_timestamps = new_timestamps;
+    debug("History cleaned. Entries remaining: " + (string)(llGetListLength(conversation_history) / 2));
+}
+
+// Function to add message to conversation history
+addToHistory(string role, string content) {
+    // Clean up expired entries first
+    cleanupHistory();
+    
+    // Add new entry
+    conversation_history += llList2Json(JSON_OBJECT, ["role", role, "content", content]);
+    conversation_timestamps += llGetTime();
+    
+    // Trim history if it exceeds maximum size
+    while (llGetListLength(conversation_history) > MAX_HISTORY_SIZE) {
+        conversation_history = llDeleteSubList(conversation_history, 0, 0);
+        conversation_timestamps = llDeleteSubList(conversation_timestamps, 0, 0);
+    }
+    
+    debug("Added to history. Total entries: " + (string)(llGetListLength(conversation_history) / 2));
+}
+
 // Function to make OpenAI API request
 makeApiRequest(string user_message, key avatar_id, string avatar_name) {
     // Update rate limiting timestamp
     last_request_time = llGetTime();
     can_process = FALSE;
     
-    // Prepare API request in JSON format
-    string messages_array = llList2Json(JSON_ARRAY, [
+    // Clean up expired history before building messages
+    cleanupHistory();
+    
+    // Build messages array starting with system prompt
+    list messages_list = [
         llList2Json(JSON_OBJECT, [
             "role", "system", 
             "content", SYSTEM_PROMPT
-        ]),
-        llList2Json(JSON_OBJECT, [
-            "role", "user",
-            "content", "An avatar in second life named " + avatar_name + " asks: " + user_message
         ])
+    ];
+    
+    // Add conversation history
+    integer i;
+    for (i = 0; i < llGetListLength(conversation_history); i++) {
+        messages_list += llList2String(conversation_history, i);
+    }
+    
+    // Format and add current user message
+    string formatted_user_message = "An avatar in second life named " + avatar_name + " asks: " + user_message;
+    string user_json = llList2Json(JSON_OBJECT, [
+        "role", "user",
+        "content", formatted_user_message
     ]);
+    messages_list += user_json;
+    
+    // Add user message to history
+    addToHistory("user", formatted_user_message);
+    
+    // Convert messages list to JSON array
+    string messages_array = llList2Json(JSON_ARRAY, messages_list);
     
     // Prepare API request JSON - fixing number format issues
     string json = "{\"model\":\"" + MODEL + 
@@ -163,6 +228,8 @@ processAiResponse(string response_json) {
     
     if (messages != JSON_INVALID) {
         content = messages;
+        // Add assistant's response to history
+        addToHistory("assistant", content);
     } else {
         // If we couldn't parse the response, provide an error message
         content = "Something went wrong with the OpenAI API. Try again later!";
@@ -170,7 +237,7 @@ processAiResponse(string response_json) {
     }
     
     // Send the response to public chat (Convert to Unicode for SL)
-    llSay(LISTENING_CHANNEL, "CatGPT: " + utf8ToUnicode(content));
+    llSay(LISTENING_CHANNEL, BOT_NAME + ": " + utf8ToUnicode(content));
     
     // Reset the processing flag after a short delay (to prevent spam)
     llSetTimerEvent(RATE_LIMIT_SECONDS);
@@ -178,8 +245,11 @@ processAiResponse(string response_json) {
 
 default {
     state_entry() {
-        llOwnerSay("CatGPT initializing...");
+        llOwnerSay(BOT_NAME + " initializing...");
         llResetTime();
+        // Clear conversation history on script start
+        conversation_history = [];
+        conversation_timestamps = [];
         init();
     }
     
@@ -212,6 +282,16 @@ default {
                         DEBUG_MODE = (integer)value;
                     } else if (param == "SYSTEM_PROMPT") {
                         SYSTEM_PROMPT = value;
+                    } else if (param == "BOT_NAME") {
+                        BOT_NAME = value;
+                    } else if (param == "API_ENDPOINT") {
+                        API_ENDPOINT = value;
+                    } else if (param == "LISTENING_CHANNEL") {
+                        LISTENING_CHANNEL = (integer)value;
+                    } else if (param == "MAX_HISTORY_SIZE") {
+                        MAX_HISTORY_SIZE = (integer)value;
+                    } else if (param == "HISTORY_TIMEOUT") {
+                        HISTORY_TIMEOUT = (float)value;
                     }
                 }
                 
@@ -220,13 +300,17 @@ default {
                 config_query_id = llGetNotecardLine(CONFIG_NOTECARD, config_line);
             } else {
                 // Done reading configuration
-                llOwnerSay("CatGPT configuration loaded.");
+                // Update SYSTEM_PROMPT if it contains BOT_NAME placeholder
+                if (llSubStringIndex(SYSTEM_PROMPT, "CatGPT") != -1) {
+                    SYSTEM_PROMPT = llReplaceSubString(SYSTEM_PROMPT, "CatGPT", BOT_NAME, 0);
+                }
+                llOwnerSay(BOT_NAME + " configuration loaded.");
                 
                 // Check if we have a valid API key
                 if (API_KEY == "") {
                     llOwnerSay("Error: API_KEY not found in configuration!");
                 } else {
-                    llOwnerSay("CatGPT is now active. Chat messages starting with '" + TRIGGER_PREFIX + "' will be processed.");
+                    llOwnerSay(BOT_NAME + " is now active. Chat messages starting with '" + TRIGGER_PREFIX + "' will be processed.");
                     llListen(LISTENING_CHANNEL, "", NULL_KEY, "");
                 }
             }
@@ -307,9 +391,9 @@ default {
         if (llDetectedKey(0) == llGetOwner()) {
             listening = !listening;
             if (listening) {
-                llOwnerSay("CatGPT is now active.");
+                llOwnerSay(BOT_NAME + " is now active.");
             } else {
-                llOwnerSay("CatGPT is now inactive.");
+                llOwnerSay(BOT_NAME + " is now inactive.");
             }
         }
     }
