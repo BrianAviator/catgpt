@@ -200,8 +200,9 @@ makeApiRequest(string user_message, key avatar_id, string avatar_name) {
                   "\",\"messages\":" + messages_array + 
                   ",\"max_tokens\":" + (string)MAX_TOKENS + 
                   ",\"temperature\":" + (string)TEMPERATURE + 
-                  "}";
-    
+                  ",\"safety_identifier\":\"" + avatar_name +
+                  "\"}";
+                  
     debug("Sending API request: " + json);
     
     // Set up HTTP headers according to LSL specification
