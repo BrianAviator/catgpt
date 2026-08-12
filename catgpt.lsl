@@ -7,12 +7,13 @@
 string CONFIG_NOTECARD = "config";
 string API_KEY = "";
 string API_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-string MODEL = "gpt-4o-mini";
+string MODEL = "gpt-5.6-luna";      // Use the explicit -luna id; the "gpt-5.6" alias routes to Sol
 string BOT_NAME = "CatGPT";         // Default Bot name
 string TRIGGER_PREFIX = "cat";      // Default trigger prefix
 float RATE_LIMIT_SECONDS = 10.0;    // Default minimum time between API calls
-integer MAX_TOKENS = 100;           // Default maximum tokens in response
-float TEMPERATURE = 0.7;            // Default temperature parameter
+integer MAX_TOKENS = 1500;          // Max completion tokens. Reasoning tokens are billed against this
+                                    // budget and effort is NOT adjustable on /v1/chat/completions,
+                                    // so leave generous headroom above the visible reply length.
 integer LISTENING_CHANNEL = 0;      // Public chat channel
 integer DEBUG_MODE = FALSE;         // Whether to show debug messages to owner
 string SYSTEM_PROMPT = "You are CatGPT, an AI demonstration exhibit in Second Life. Your responses should be brief (75-100 words at most) as they'll appear in public chat. Be helpful, and friendly. Your responses will be visible to everyone in the area, so keep them appropriate for all audiences, G-rated only.";
@@ -196,10 +197,13 @@ makeApiRequest(string user_message, key avatar_id, string avatar_name) {
     string messages_array = llList2Json(JSON_ARRAY, messages_list);
     
     // Prepare API request JSON - fixing number format issues
-    string json = "{\"model\":\"" + MODEL + 
-                  "\",\"messages\":" + messages_array + 
-                  ",\"max_tokens\":" + (string)MAX_TOKENS + 
-                  ",\"temperature\":" + (string)TEMPERATURE + 
+    // GPT-5.6 is a reasoning model: it rejects "temperature" outright and requires
+    // "max_completion_tokens" in place of the deprecated "max_tokens".
+    // "reasoning_effort" is Responses-API only - chat/completions rejects it with
+    // "Unrecognized request argument supplied: reasoning_effort".
+    string json = "{\"model\":\"" + MODEL +
+                  "\",\"messages\":" + messages_array +
+                  ",\"max_completion_tokens\":" + (string)MAX_TOKENS +
                   ",\"safety_identifier\":\"" + avatar_name +
                   "\"}";
                   
@@ -210,7 +214,7 @@ makeApiRequest(string user_message, key avatar_id, string avatar_name) {
     headers += [HTTP_METHOD, "POST"];
     headers += [HTTP_MIMETYPE, "application/json"];
     headers += [HTTP_BODY_MAXLENGTH, 16384];
-    headers += [HTTP_VERIFY_CERT, FALSE];
+    headers += [HTTP_VERIFY_CERT, TRUE];    // Must stay TRUE - the API key is sent as a bearer token below
     headers += [HTTP_CUSTOM_HEADER, "Authorization", "Bearer " + API_KEY];
     
     // Make the API request
@@ -227,10 +231,16 @@ processAiResponse(string response_json) {
     // Parse the JSON response to extract the message content
     string messages = llJsonGetValue(response_json, ["choices", 0, "message", "content"]);
     
-    if (messages != JSON_INVALID) {
+    if (messages != JSON_INVALID && messages != "") {
         content = messages;
         // Add assistant's response to history
         addToHistory("assistant", content);
+    } else if (messages == "") {
+        // Reasoning models can spend the entire token budget thinking and return
+        // empty content with finish_reason "length". Raise MAX_TOKENS if this recurs.
+        content = "I got lost in thought and ran out of room. Ask me again!";
+        llOwnerSay("Empty content returned - MAX_TOKENS (" + (string)MAX_TOKENS +
+                   ") is too low to cover reasoning tokens plus a reply.");
     } else {
         // If we couldn't parse the response, provide an error message
         content = "Something went wrong with the OpenAI API. Try again later!";
@@ -278,7 +288,8 @@ default {
                     } else if (param == "MAX_TOKENS") {
                         MAX_TOKENS = (integer)value;
                     } else if (param == "TEMPERATURE") {
-                        TEMPERATURE = (float)value;
+                        // GPT-5.6 rejects temperature. Warn rather than fail silently.
+                        llOwnerSay("Notice: TEMPERATURE is ignored - " + MODEL + " does not accept it.");
                     } else if (param == "DEBUG_MODE") {
                         DEBUG_MODE = (integer)value;
                     } else if (param == "SYSTEM_PROMPT") {
